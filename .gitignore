@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+
+# Environment Variables (SANGAT PENTING: jangan share .env berisi password/API key)
+.env
+!.env.example
+
+# Microsoft Office Temporary Files
+~$*
+
+# Editor
+.vscode/
+
+# Hasil Scraper / Data (Opsional, jika tidak ingin menyimpan data mentah di Git)
+*.xlsx
+*.csv
