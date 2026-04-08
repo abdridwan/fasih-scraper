@@ -1,0 +1,19 @@
+{
+    "PBI_JKN": {
+        "period_id": "39136966-8f3c-4a0c-915b-0f65eb223475",
+        "uuid": "8712a6fc-a996-4a8f-ad6f-56a278c19288",
+        "columns": {
+            "id": "ID_Responden",
+            "codeIdentity": "Kode_Sampel",
+            "assignmentStatusAlias": "Status_Tugas",
+            "kecamatan_asal": "Kecamatan",
+            "desa_asal": "Desa",
+            "data1": "Nama_Kepala_Keluarga",
+            "currentUserFullname": "Nama_Petugas"
+        }
+    },
+    "REGSOSEK": {
+        "period_id": "xxx-xxxx",
+        "uuid": "xxx-yyyy"
+    }
+}
