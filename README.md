@@ -20,7 +20,7 @@ Alat otomatisasi berbasis Python untuk scraping data **Fasih BPS** secara multi-
     ```env
     SSO_USERNAME=username_anda
     SSO_PASSWORD=password_anda
-    SELECTED_KAB_ID=kode_kab_bps
+    SELECTED_KAB_ID=uuid_wilayah
     ```
 
 -----
@@ -29,7 +29,7 @@ Alat otomatisasi berbasis Python untuk scraping data **Fasih BPS** secara multi-
 
 ### 1\. Mode CLI (Otomasi & Task Scheduler)
 
-Sangat disarankan untuk penggunaan rutin atau terjadwal.
+Disarankan untuk penggunaan rutin atau terjadwal.
 
   * **Interaktif (Menu):** `python main.py`
   * **Langsung (Otomatis):** `python main.py [NAMA_SURVEI]`
@@ -60,7 +60,13 @@ python gui_main.py
 
 ## ⚙️ Kustomisasi Survei
 
-Gunakan menu **Tambah/Edit** pada **GUI** atau edit file `surveys.json` secara manual untuk mengatur `period_id`, `uuid`, dan mapping kolom API.
+Gunakan menu **Tambah/Edit** pada GUI atau edit `surveys.json`. Parameter yang dibutuhkan:
+
+  * **UUID Survey:** Didapat dari URL saat membuka survei di browser:
+    `.../collect/[uuid-survey]`
+  * **Period ID:** Buka *Developer Tools* (F12) \> Network, cari request `myinfo`. Lihat pada bagian payload/response:
+    `surveyPeriodId: [nomor-id]`
+  * **Mapping Kolom:** Sesuaikan nama kolom API dengan header CSV yang diinginkan.
 
 -----
 

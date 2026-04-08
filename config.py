@@ -18,4 +18,4 @@ PAGE_SIZE = 100 # Standar Datatable BPS
 
 # Target Wilayah (Statis di tingkat Kabupaten)
 # Ganti dengan ID Kabupaten/Kota target Anda
-SELECTED_KAB_ID = os.getenv("SELECTED_KAB_ID", "c2349819-44e6-433b-bf14-f674b4778f88")
+SELECTED_KAB_ID = os.getenv("SELECTED_KAB_ID", "uuid-didapat-dari-fasih-dev-mode-trigger-filtering-wilayah")
