@@ -67,7 +67,7 @@ def auto_discovery_login(base_url, survey_uuid):
                 if c['name'].lower() == 'xsrf-token':
                     auth_results["headers"]["X-XSRF-TOKEN"] = c['value']
             
-            page.wait_for_timeout(3000)
+            page.wait_for_timeout(5000)
             print(f"🍪 Cookie & Token disinkronkan.")
 
         except Exception as e:

@@ -16,3 +16,7 @@ __pycache__/
 # Hasil Scraper / Data (Opsional, jika tidak ingin menyimpan data mentah di Git)
 *.xlsx
 *.csv
+
+# Google Cloud Credentials (SANGAT RAHASIA)
+token.pickle
+client_secrets.json

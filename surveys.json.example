@@ -1,0 +1,28 @@
+{
+    "NAMA_SURVEI_1": {
+        "period_id": "xxx-xxxx-yyyy-zzzz",
+        "uuid": "xxx-yyyy-aaaa-bbbb",
+        "columns": {
+            "id": "ID_Responden",
+            "codeIdentity": "Kode_Sampel",
+            "assignmentStatusAlias": "Status",
+            "kecamatan_asal": "Kecamatan",
+            "desa_asal": "Desa",
+            "data1": "Nama_Keluarga"
+        }
+    },
+    "NAMA_SURVEI_2": {
+        "period_id": "xxx-xxxx-yyyy-zzzz",
+        "uuid": "xxx-yyyy-aaaa-bbbb",
+        "columns": {
+            "id": "ID_Responden",
+            "codeIdentity": "Kode_Sampel",
+            "assignmentStatusAlias": "Status",
+            "data1": "Nama",
+            "data2": "Alamat",
+            "data3": "Kondisi Lapangan",
+            "currentUserFullname": "Nama_Petugas",
+            "currentUserUsername": "Email_Petugas"
+        }
+    }
+}

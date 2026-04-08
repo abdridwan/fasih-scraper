@@ -2,95 +2,17 @@ import json
 import os
 import sys
 import pandas as pd
-import config
 import time
 import csv
 import random
-from scraper import FasihScraper
-from login import auto_discovery_login 
+import requests
+from google_drive import upload_to_drive
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-def process_survey(survey_key, settings, scraper_instance):
-    nama_output = f"{config.tgl_str}_{survey_key}.csv"
-    print(f"\n--- 📋 MEMPROSES SURVEI: {survey_key} ---")
-
-    # --- TAHAP 1: DISCOVERY & AUTH ---
-    try:
-        discovery = auto_discovery_login(config.BASE_API_URL, settings['uuid'])
-    except Exception as e:
-        print(f"🛑 Gagal menghubungi server: {e}")
-        print("💡 Pastikan VPN Anda sudah aktif dan login SSO masih berlaku.")
-        return
-
-    # Update session headers dan metadata per survei
-    scraper_instance.session.headers.update(discovery["headers"])
-    scraper_instance.metadata = discovery["metadata"]
-
-    # --- TAHAP 2: PENELUSURAN WILAYAH ---
-    print(f"📂 Menelusuri wilayah untuk Kabupaten: {config.SELECTED_KAB_ID}...")
-    kec_list = scraper_instance.get_sub_regions("level3", config.SELECTED_KAB_ID)
-    
-    if not kec_list:
-        print("⚠️ Daftar kecamatan kosong.")
-        return
-
-    all_desas = []
-    for kec in kec_list:
-        desa_list = scraper_instance.get_sub_regions("level4", kec['id'])
-        for d in desa_list:
-            all_desas.append({
-                "id": d['id'], "name": d['name'], 
-                "kec_id": kec['id'], "kec_name": kec['name']
-            })
-        time.sleep(random.uniform(0.1, 0.3))
-
-    # --- TAHAP 3: MULTI-THREADED SCRAPING ---
-    print(f"🚀 Scraping {len(all_desas)} desa...")
-    final_results = []
-    start_time = time.time()
-
-    with ThreadPoolExecutor(max_workers=5) as executor:
-        futures = {
-            executor.submit(
-                scraper_instance.fetch_all_data_per_desa, 
-                settings['period_id'], d['id'], d['name'], d['kec_id']
-            ): d for d in all_desas
-        }
-
-        for future in as_completed(futures):
-            d_info = futures[future]
-            try:
-                res = future.result() 
-                if res:
-                    for row in res:
-                        row['kecamatan_asal'] = d_info['kec_name']
-                        row['desa_asal'] = d_info['name']
-                    final_results.extend(res)
-            except Exception as e:
-                print(f"⚠️ Error di {d_info['name']}: {e}")
-
-    # --- TAHAP 4: FILTER KOLOM & EXPORT ---
-    if final_results:
-        df = pd.DataFrame(final_results)
-        
-        # Ambil pemetaan kolom dari config
-        mapping_kolom = settings.get("columns")
-        
-        if mapping_kolom:
-            # Filter hanya kolom yang ada di config dan rename
-            # Menggunakan list comprehension agar tidak error jika kolom tidak ada di API
-            existing_cols = [c for c in mapping_kolom.keys() if c in df.columns]
-            df = df[existing_cols].rename(columns=mapping_kolom)
-            print(f"✅ Kolom difilter menjadi: {len(df.columns)} kolom.")
-        
-        # Simpan Output
-        df.to_csv(nama_output, index=False, sep=';', quoting=csv.QUOTE_ALL, encoding='utf-8')
-        
-        durasi = time.time() - start_time
-        print(f"🏁 {survey_key} SELESAI: {len(df)} data dalam {durasi:.2f}s -> {nama_output}")
-    else:
-        print(f"❌ Tidak ada data untuk {survey_key}.")
-
+# Import modul internal
+import config
+from scraper import FasihScraper
+from login import auto_discovery_login
 
 JSON_FILE = "surveys.json"
 
@@ -118,43 +40,167 @@ def tambah_survey_manual():
     save_surveys(surveys)
     print(f"✅ Survei {nama} berhasil ditambahkan!")
 
+def process_survey(survey_key, settings, auto_upload=False):
+    """Logika utama scraping dengan opsi upload otomatis"""
+    start_time = time.time()
+    
+    # 1. Inisialisasi Scraper Bersih
+    scraper = FasihScraper()
+    scraper.session.cookies.clear() 
+    print(f"\n--- 🧹 Session dibersihkan. Memproses: {survey_key} ---")
+
+    # 2. Discovery & Auth
+    try:
+        discovery = auto_discovery_login(config.BASE_API_URL, settings['uuid'])
+        if not discovery or not discovery.get("metadata"):
+            print(f"🛑 Gagal Auth. Pastikan VPN aktif dan UUID benar.")
+            return
+
+        scraper.session.headers.update(discovery["headers"])
+        scraper.metadata = discovery["metadata"]
+    except Exception as e:
+        print(f"🛑 Error Discovery: {e}")
+        return
+
+    # 3. Penelusuran Wilayah
+    print(f"📂 Menelusuri wilayah untuk Kab ID: {config.SELECTED_KAB_ID}...")
+    try:
+        kec_list = scraper.get_sub_regions("level3", config.SELECTED_KAB_ID)
+        if not kec_list:
+            print("⚠️ Daftar kecamatan kosong. Periksa SELECTED_KAB_ID di .env")
+            return
+
+        all_desas = []
+        for kec in kec_list:
+            desa_list = scraper.get_sub_regions("level4", kec['id'])
+            for d in desa_list:
+                all_desas.append({
+                    "id": d['id'], "name": d['name'], 
+                    "kec_id": kec['id'], "kec_name": kec['name']
+                })
+            time.sleep(random.uniform(0.1, 0.3))
+    except Exception as e:
+        print(f"❌ Error saat menelusuri wilayah: {e}")
+        return
+
+    # 4. Scraping
+    print(f"🚀 Scraping {len(all_desas)} desa dengan 3 threads...")
+    final_results = []
+    
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = {
+            executor.submit(
+                scraper.fetch_all_data_per_desa, 
+                settings['period_id'], d['id'], d['name'], d['kec_id']
+            ): d for d in all_desas
+        }
+        
+        for future in as_completed(futures):
+            d_info = futures[future]
+            try:
+                res = future.result() 
+                if res:
+                    for row in res:
+                        row['kecamatan_asal'] = d_info['kec_name']
+                        row['desa_asal'] = d_info['name']
+                    final_results.extend(res)
+                    print(f"✔️ Selesai: {d_info['name']}")
+                else:
+                    print(f"⚪ Kosong: {d_info['name']}")
+            except Exception as e:
+                print(f"⚠️ Gagal di {d_info['name']}: {e}")
+
+    # 5. Export & Optional Upload
+    if final_results:
+        if not os.path.exists("data"):
+            os.makedirs("data")
+            
+        df = pd.DataFrame(final_results)
+        mapping = settings.get("columns")
+        
+        if mapping:
+            existing = [c for c in mapping.keys() if c in df.columns]
+            df = df[existing].rename(columns=mapping)
+            print(f"✅ Kolom difilter menjadi: {len(df.columns)} kolom.")
+        
+        nama_output = f"{config.tgl_str}_{survey_key}.csv"
+        path_output = os.path.join("data", nama_output)
+        
+        # Simpan CSV Lokal (Delimiter ; agar sesuai Apps Script Anda)
+        df.to_csv(path_output, index=False, sep=';', quoting=csv.QUOTE_ALL, encoding='utf-8')
+        
+        # --- LOGIKA UPLOAD GDRIVE ---
+        if auto_upload:
+            print(f"📤 Mengirim ke Drive...")
+            upload_sukses = upload_to_drive(path_output)
+            if upload_sukses:
+                print("✨ Berhasil upload ke Google Drive.")
+            else:
+                print("⚠️ Gagal mengirim ke Drive.")
+        else:
+            print(f"📁 File disimpan di lokal: {path_output}")
+        # ------------------------------
+        
+        durasi = time.time() - start_time
+        print(f"🏁 SELESAI dalam {durasi:.2f}s")
+    else:
+        print(f"❌ Tidak ada data yang ditarik untuk {survey_key}.")
+
 def main():
-    while True: # Tambahkan loop agar setelah tambah data bisa langsung pilih
+    """Menu Interaktif CLI"""
+    while True:
         surveys = load_surveys()
         available_surveys = list(surveys.keys())
         
         print("\n" + "="*40)
-        print("      FASIH SCRAPER - MENU")
+        print("      FASIH SCRAPER - CLI MENU")
         print("="*40)
         for i, survey_name in enumerate(available_surveys, 1):
             print(f" [{i}] {survey_name}")
-        
-        print(f" [{len(available_surveys) + 1}] ➕ Tambah Survei Baru")
+        print(f" [{len(available_surveys) + 1}] ➕ Tambah Survei")
         print(" [0] Keluar")
         print("="*40)
 
         try:
-            user_input = input(f"Pilih nomor (0-{len(available_surveys) + 1}): ")
-            pilihan = int(user_input)
-        except ValueError:
-            print("❌ Masukkan angka!")
-            continue
+            pilihan = int(input(f"Pilih (0-{len(available_surveys) + 1}): "))
+        except (ValueError, EOFError, KeyboardInterrupt):
+            print("\n👋 Keluar...")
+            break
 
         if pilihan == 0:
-            sys.exit()
-        
+            break
         elif pilihan == len(available_surveys) + 1:
             tambah_survey_manual()
-            
         elif 1 <= pilihan <= len(available_surveys):
-            selected_key = available_surveys[pilihan - 1]
-            settings = surveys[selected_key]
+            key = available_surveys[pilihan - 1]
             
-            scraper = FasihScraper()
-            process_survey(selected_key, settings, scraper)
-            break # Selesai proses, keluar loop atau biarkan jika ingin lanjut
+            # Konfirmasi Upload via CLI
+            tanya_upload = input(f"❓ Upload hasil {key} ke Google Drive? (y/n): ").lower()
+            mau_upload = tanya_upload == 'y'
+            
+            process_survey(key, surveys[key], auto_upload=mau_upload)
         else:
             print("⚠️ Pilihan tidak valid.")
 
+def main_automatic(survey_key, auto_upload=False):
+    """Menjalankan scraping otomatis via Argumen"""
+    surveys = load_surveys()
+    if survey_key in surveys:
+        process_survey(survey_key, surveys[survey_key], auto_upload)
+    else:
+        print(f"❌ Error: Nama survei '{survey_key}' tidak ditemukan.")
+
 if __name__ == "__main__":
-    main()
+    # Menangani argumen (misal: python main.py REGSOSEK --upload)
+    args = [a.upper() for a in sys.argv]
+    
+    if len(args) > 1:
+        target_survey = args[1]
+        should_upload = "--UPLOAD" in args
+        main_automatic(target_survey, should_upload)
+    else:
+        main()
+
+# if __name__ == "__main__":
+#     # Upload gdrive saja:
+#     upload_to_drive("data/20260409_0553_PBI.csv")
