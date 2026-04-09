@@ -1,13 +1,13 @@
 # --- Core UI & Logic ---
-PyQt6==6.6.1
-pandas==2.2.1
-requests==2.31.0
-python-dotenv==1.0.1
+PyQt6
+pandas
+requests
+python-dotenv
 
 # --- Scraper Engine ---
-playwright==1.42.0
+playwright
 
 # --- Google Drive (OAuth2 User Mode) ---
-google-api-python-client==2.125.0
-google-auth-oauthlib==1.2.0
-google-auth-httplib2==0.2.0
+google-api-python-client
+google-auth-oauthlib
+google-auth-httplib2
