@@ -34,7 +34,7 @@ def auto_discovery_login(base_url, survey_uuid, max_retries=3):
 
                 # 2. REDIRECT KE ROOT (Pastikan daftar survei muncul)
                 # Menunggu tabel dengan ID Pencacahan agar session cookie benar-benar terdaftar
-                print("⏳ Menunggu dashboard utama stabil...")
+                print("⏳ Menunggu halaman utama stabil...")
                 page.wait_for_url(f"**{base_url.rstrip('/')}/**")
                 page.wait_for_selector("table#Pencacahan", state="visible", timeout=30000)
                 page.wait_for_load_state("networkidle")

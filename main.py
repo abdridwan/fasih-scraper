@@ -192,26 +192,26 @@ def main_automatic(survey_key, auto_upload=False):
     else:
         print(f"❌ Error: Nama survei '{survey_key}' tidak ditemukan.")
 
-# if __name__ == "__main__":
-#     # 1. Bersihkan semua argumen: ubah ke UPPERCASE dan hapus karakter "--"
-#     # Agar --PBI, --pbi, atau PBI semuanya dibaca sebagai PBI
-#     clean_args = [a.upper().replace("--", "") for a in sys.argv]
-    
-#     # 2. Cari apakah ada flag UPLOAD di dalam argumen
-#     should_upload = "UPLOAD" in clean_args
-
-#     # 3. Cari argumen yang merupakan nama survei (yang bukan nama file dan bukan UPLOAD)
-#     # sys.argv[0] biasanya adalah 'main.py'
-#     potential_surveys = [a for a in clean_args if a not in ["UPLOAD", os.path.basename(__file__).upper()]]
-
-#     if potential_surveys:
-#         target_survey = potential_surveys[0]
-#         # Jalankan otomatis jika ada argumen survei
-#         main_automatic(target_survey, should_upload)
-#     else:
-#         # Jalankan menu interaktif jika tidak ada argumen
-#         main()
-
 if __name__ == "__main__":
-    # Upload gdrive saja:
-    upload_to_drive("data/20260409_1246_PBI.csv")
+    # 1. Bersihkan semua argumen: ubah ke UPPERCASE dan hapus karakter "--"
+    # Agar --PBI, --pbi, atau PBI semuanya dibaca sebagai PBI
+    clean_args = [a.upper().replace("--", "") for a in sys.argv]
+    
+    # 2. Cari apakah ada flag UPLOAD di dalam argumen
+    should_upload = "UPLOAD" in clean_args
+
+    # 3. Cari argumen yang merupakan nama survei (yang bukan nama file dan bukan UPLOAD)
+    # sys.argv[0] biasanya adalah 'main.py'
+    potential_surveys = [a for a in clean_args if a not in ["UPLOAD", os.path.basename(__file__).upper()]]
+
+    if potential_surveys:
+        target_survey = potential_surveys[0]
+        # Jalankan otomatis jika ada argumen survei
+        main_automatic(target_survey, should_upload)
+    else:
+        # Jalankan menu interaktif jika tidak ada argumen
+        main()
+
+# if __name__ == "__main__":
+#     # Upload gdrive saja:
+#     upload_to_drive("data/20260409_1246_PBI.csv")

@@ -15,17 +15,5 @@
             "currentUserFullname": "Nama_Petugas",
             "currentUserUsername": "Email_Petugas"
         }
-    },
-    "SURVEI APA": {
-        "period_id": "xxx-xxxx",
-        "uuid": "xxx-yyyy",
-        "columns": {
-            "id": "ID_Responden",
-            "codeIdentity": "Kode_Sampel",
-            "assignmentStatusAlias": "Status",
-            "kecamatan_asal": "Kecamatan",
-            "desa_asal": "Desa",
-            "data1": "Nama_Keluarga"
-        }
     }
 }

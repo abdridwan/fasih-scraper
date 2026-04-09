@@ -3,6 +3,7 @@ PyQt6
 pandas
 requests
 python-dotenv
+qtawesome
 
 # --- Scraper Engine ---
 playwright
