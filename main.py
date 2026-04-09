@@ -191,14 +191,23 @@ def main_automatic(survey_key, auto_upload=False):
         print(f"❌ Error: Nama survei '{survey_key}' tidak ditemukan.")
 
 if __name__ == "__main__":
-    # Menangani argumen (misal: python main.py REGSOSEK --upload)
-    args = [a.upper() for a in sys.argv]
+    # 1. Bersihkan semua argumen: ubah ke UPPERCASE dan hapus karakter "--"
+    # Agar --PBI, --pbi, atau PBI semuanya dibaca sebagai PBI
+    clean_args = [a.upper().replace("--", "") for a in sys.argv]
     
-    if len(args) > 1:
-        target_survey = args[1]
-        should_upload = "--UPLOAD" in args
+    # 2. Cari apakah ada flag UPLOAD di dalam argumen
+    should_upload = "UPLOAD" in clean_args
+
+    # 3. Cari argumen yang merupakan nama survei (yang bukan nama file dan bukan UPLOAD)
+    # sys.argv[0] biasanya adalah 'main.py'
+    potential_surveys = [a for a in clean_args if a not in ["UPLOAD", os.path.basename(__file__).upper()]]
+
+    if potential_surveys:
+        target_survey = potential_surveys[0]
+        # Jalankan otomatis jika ada argumen survei
         main_automatic(target_survey, should_upload)
     else:
+        # Jalankan menu interaktif jika tidak ada argumen
         main()
 
 # if __name__ == "__main__":
