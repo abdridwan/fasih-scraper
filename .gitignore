@@ -13,6 +13,10 @@ __pycache__/
 # Editor
 .vscode/
 
+# Scheduler Logs
+logs_scheduler.txt
+autorun.bat
+
 # Hasil Scraper / Data (Opsional, jika tidak ingin menyimpan data mentah di Git)
 *.xlsx
 *.csv

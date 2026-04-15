@@ -15,5 +15,13 @@
             "currentUserFullname": "Nama_Petugas",
             "currentUserUsername": "Email_Petugas"
         }
+    },
+    "GC_PLN_PRABAYAR": {
+        "period_id": "16acea4e-4710-43d1-8b00-eeee589c8b66",
+        "uuid": "2395b67d-d1af-4739-9ef8-c0cc0aa9ce9a"
+    },
+    "GC_PLN_PASCABAYAR": {
+        "period_id": "d63e9832-13c6-4ec7-bf5b-59229c2f90f9",
+        "uuid": "2e31188c-a617-4163-8056-edccf93d8d79"
     }
 }

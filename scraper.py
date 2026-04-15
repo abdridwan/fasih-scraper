@@ -2,6 +2,7 @@ import requests
 import time
 import logging
 import random
+import config
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -12,35 +13,33 @@ class FasihScraper:
         self.session = requests.Session()
         self.metadata = {} # Akan diisi dari Playwright (groupId, reg1, reg2)
 
-    def get_sub_regions(self, level, parent_id):
-        # Endpoint tetap sama
-        url = f"{self.base_url}/region/api/v1/region/{level}"
+    def get_sub_regions(self, level_name, parent_id):
+        """
+        level_name: 'level3', 'level4', dst.
+        parent_id: ID dari level satu tingkat di atasnya
+        """
+        url = f"{config.BASE_API_URL}/region/api/v1/region/{level_name}"
         
-        # SONTEKAN: Gunakan params yang sesuai dengan kode Anda
+        # Ambil angka level dari string 'level4' -> 4
+        current_level_num = int(''.join(filter(str.isdigit, level_name)))
+        parent_level_num = current_level_num - 1
+        
+        # Bangun parameter: level3Id, level4Id, dsb.
         params = {
-            "groupId": self.metadata.get('groupId'), 
-            "size": 1000
+            "groupId": self.metadata.get('groupId'),
+            f"level{parent_level_num}Id": parent_id
         }
         
-        # Logika penentuan parent ID yang lebih presisi
-        if level == "level3": 
-            params["level2Id"] = parent_id # Parent-nya adalah Kabupaten
-        elif level == "level4": 
-            params["level3Id"] = parent_id # Parent-nya adalah Kecamatan
+        # Khusus untuk level 3, BPS seringkali minta level1FullCode
+        if level_name == "level3":
+            params["level1FullCode"] = config.TARGET_KAB_CODE[:2]
 
         try:
-            # Gunakan session yang sudah membawa Cookie + Authorization dari Playwright
             res = self.session.get(url, params=params, timeout=20)
-            
             if res.status_code == 200:
-                data = res.json()
-                # BPS kadang mengembalikan di 'data', kadang di 'content'
-                return data.get('data', []) or data.get('content', [])
-            
-            print(f"⚠️ Status {res.status_code} saat ambil {level} untuk parent {parent_id}")
+                return res.json().get('data', [])
             return []
-        except Exception as e:
-            print(f"❌ Error request wilayah: {e}")
+        except:
             return []
 
     def fetch_all_data_per_desa(self, period_id, desa_id, desa_name, kec_id):
