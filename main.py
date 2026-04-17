@@ -40,10 +40,6 @@ def tambah_survey_manual():
     print(f"✅ Survei {nama} berhasil ditambahkan!")
 
 def process_survey(survey_key, settings, auto_upload=False):
-    """
-    Scraping Level 4 dengan Progress Bar, Force Fetch Metadata,
-    dan Full Traversal yang diperbaiki untuk parameter API.
-    """
     start_time = time.time()
     scraper = FasihScraper()
     scraper.session.cookies.clear() 
@@ -58,28 +54,23 @@ def process_survey(survey_key, settings, auto_upload=False):
         scraper.session.headers.update(discovery["headers"])
         group_id = discovery["metadata"].get('groupId')
         
-        # 2. FORCE FETCH METADATA (Menjamin array 'level' tersedia)
+        # 2. FETCH METADATA WILAYAH
         url_meta = f"{config.BASE_API_URL}/region/api/v1/region-metadata?id={group_id}"
         res_meta = scraper.session.get(url_meta)
-        if res_meta.status_code != 200:
-            print(f"❌ Gagal mendapatkan metadata (Status: {res_meta.status_code})")
-            return
-            
-        meta_data = res_meta.json().get('data', {})
-        levels = meta_data.get('level', [])
+        levels = res_meta.json().get('data', {}).get('level', [])
+        
         if not levels:
             print("❌ Struktur level wilayah kosong.")
             return
 
-        # 3. PENENTUAN TARGET (Index 3 = Level 4)
+        # Target utama tetap Level 4 (Desa)
         target_level_idx = 3 if len(levels) >= 4 else len(levels) - 1
         lvl_target_info = levels[target_level_idx]
 
-        # --- TAHAP PENELUSURAN WILAYAH (Fixed Logic) ---
-        print(f"🔍 Menelusuri jalur wilayah {config.TARGET_KAB_CODE}...", end=" ", flush=True)
-        
+        # 3. TRAVERSAL (Mencari UUID Wilayah)
+        print(f"🔍 Menelusuri jalur wilayah Kab: {config.TARGET_KAB_CODE}...", end=" ", flush=True)
         prov_code = str(config.TARGET_KAB_CODE)[:2] 
-        # Cari UUID Kabupaten (Level 2)
+        
         res_kab = scraper.session.get(
             f"{config.BASE_API_URL}/region/api/v1/region/level2", 
             params={"groupId": group_id, "level1FullCode": prov_code}
@@ -88,150 +79,123 @@ def process_survey(survey_key, settings, auto_upload=False):
         target_kab = next((k for k in kab_list if str(k.get('fullCode')) == str(config.TARGET_KAB_CODE)), None)
         
         if not target_kab:
-            print(f"\n❌ Kode {config.TARGET_KAB_CODE} tidak ditemukan di Master Wilayah.")
+            print(f"\n❌ Kode {config.TARGET_KAB_CODE} tidak ditemukan.")
             return
 
-        current_list = [{"id": target_kab['id'], "name": target_kab['name'], "metadata": {}}]
+        initial_metadata = {
+            "region1Id": discovery["metadata"].get('region1Id'),
+            "region2Id": target_kab['id']
+        }
+        initial_names = {f"lvl2_{levels[1]['name']}": target_kab['name']}
 
-        # Traversal Berjenjang
+        current_list = [{
+            "id": target_kab['id'], 
+            "name": target_kab['name'], 
+            "hierarchy": initial_metadata, 
+            "meta_names": initial_names
+        }]
+
+        # Loop penelusuran sampai Level 4 (Desa)
         for i in range(2, target_level_idx + 1):
             lvl_info = levels[i]
-            lvl_api_name = f"level{lvl_info['id']}"
             next_list = []
-            
-            # Tentukan nama parameter ID bapak (level2Id, level3Id, dst)
             parent_id_key = f"level{levels[i-1]['id']}Id"
             
             for parent in current_list:
-                params = {
-                    "groupId": group_id,
-                    parent_id_key: parent['id']
-                }
-                # API Level 3 sering mewajibkan level1FullCode (Provinsi)
-                if lvl_info['id'] == 3:
-                    params["level1FullCode"] = prov_code
+                params = {"groupId": group_id, parent_id_key: parent['id']}
+                if lvl_info['id'] == 3: params["level1FullCode"] = prov_code
 
                 try:
-                    res_raw = scraper.session.get(f"{config.BASE_API_URL}/region/api/v1/region/{lvl_api_name}", params=params)
+                    res_raw = scraper.session.get(f"{config.BASE_API_URL}/region/api/v1/region/level{lvl_info['id']}", params=params)
                     res_data = res_raw.json().get('data', [])
                     
                     if isinstance(res_data, list):
                         for item in res_data:
-                            meta = parent['metadata'].copy()
-                            label_prev = f"lvl{levels[i-1]['id']}_{levels[i-1]['name']}"
-                            meta[label_prev] = parent['name']
+                            new_hier = parent['hierarchy'].copy()
+                            new_hier[f"region{lvl_info['id']}Id"] = item['id']
+                            
+                            new_names = parent['meta_names'].copy()
+                            new_names[f"lvl{lvl_info['id']}_{lvl_info['name']}"] = item['name']
                             
                             next_list.append({
                                 "id": item['id'], 
                                 "name": item['name'], 
-                                "metadata": meta, 
-                                "parent_id": parent['id']
+                                "hierarchy": new_hier,
+                                "meta_names": new_names
                             })
-                except:
-                    continue
-            
+                except: continue
             current_list = next_list
-            if not current_list:
-                print(f"\n⚠️ Terputus di {lvl_info['name']}. Periksa koneksi/akses.")
-                break
+        
+        # --- LOGIKA BARU: INTIP SLS (LEVEL 5) ---
+        print(f"DONE. Mengunci {len(current_list)} Desa. Memetakan SLS...", end=" ", flush=True)
+        for unit in current_list:
+            # Cek apakah ada Level 5 di bawah desa ini
+            try:
+                res_sls = scraper.session.get(f"{config.BASE_API_URL}/region/api/v1/region/level5", 
+                                             params={"groupId": group_id, "level4Id": unit['id']})
+                sls_data = res_sls.json().get('data', [])
+                
+                unit['sls_list'] = [{
+                    "id": s['id'], 
+                    "name": s['name'],
+                    "hierarchy": {**unit['hierarchy'], "region5Id": s['id']}
+                } for s in sls_data] if isinstance(sls_data, list) else []
+            except:
+                unit['sls_list'] = []
 
         all_units = current_list
-        print(f"DONE. ({len(all_units)} {lvl_target_info['name']} terkunci)")
+        print("OK.")
+
+        # 4. TAHAP SCRAPING (Multi-Thread)
+        final_results = []
+        with tqdm(total=len(all_units), desc="📊 Progress", unit="unit", colour="green") as pbar:
+            with ThreadPoolExecutor(max_workers=4) as executor:
+                futures = {
+                    executor.submit(
+                        scraper.fetch_all_data_per_unit, 
+                        settings['period_id'], u['id'], u['name'], u['hierarchy'], u['sls_list'] # <-- Kirim SLS List
+                    ): u for u in all_units
+                }
+                
+                for future in as_completed(futures):
+                    u_info = futures[future]
+                    try:
+                        res = future.result() 
+                        if res:
+                            for row in res:
+                                for m_key, m_val in u_info['meta_names'].items():
+                                    row[m_key] = m_val
+                                # Label Desa
+                                label_desa = f"lvl{lvl_target_info['id']}_{lvl_target_info['name']}"
+                                row[label_desa] = u_info['name']
+                            final_results.extend(res)
+                    except Exception as e:
+                        print(f"\n⚠️ Gagal di {u_info['name']}: {e}")
+                    pbar.update(1)
+
+        # 5. EXPORT & MAPPING
+        if final_results:
+            df = pd.DataFrame(final_results)
+            df = df.loc[:, ~df.columns.duplicated()]
+
+            # Deteksi kecamatan & desa asal
+            col_kec = next((c for c in df.columns if c.lower().startswith('lvl3')), None)
+            col_desa = next((c for c in df.columns if c.lower().startswith('lvl4')), None)
+            if col_kec: df['kecamatan_asal'] = df[col_kec]
+            if col_desa: df['desa_asal'] = df[col_desa]
+
+            mapping = settings.get("columns")
+            if mapping:
+                target_cols = [c for c in mapping.keys() if c in df.columns]
+                df = df[target_cols].rename(columns=mapping)
+
+            if not os.path.exists("data"): os.makedirs("data")
+            path_out = os.path.join("data", f"{config.tgl_str}_{survey_key}.csv")
+            df.to_csv(path_out, index=False, sep=';', quoting=csv.QUOTE_ALL, encoding='utf-8')
+            print(f"🏁 SELESAI! Total: {len(df)} baris.")
 
     except Exception as e:
-        print(f"\n❌ Gagal inisialisasi: {e}")
-        return
-
-    # --- TAHAP SCRAPING (Progress Bar) ---
-    if not all_units:
-        print("⚠️ Tidak ada unit wilayah untuk diproses.")
-        return
-
-    final_results = []
-    failed_units = []
-    print(f"🚀 Memulai Scraping {survey_key}:")
-    
-    with tqdm(total=len(all_units), desc="📊 Progress", unit="unit", colour="green") as pbar:
-        with ThreadPoolExecutor(max_workers=3) as executor:
-            futures = {
-                executor.submit(
-                    scraper.fetch_all_data_per_desa, 
-                    settings['period_id'], u['id'], u['name'], u['parent_id']
-                ): u for u in all_units
-            }
-            
-            for future in as_completed(futures):
-                u_info = futures[future]
-                try:
-                    res = future.result() 
-                    if res:
-                        for row in res:
-                            for m_key, m_val in u_info['metadata'].items():
-                                row[m_key] = m_val
-                            label_self = f"lvl{lvl_target_info['id']}_{lvl_target_info['name']}"
-                            row[label_self] = u_info['name']
-                            row['target_unit_id'] = u_info['id']
-                        final_results.extend(res)
-                except Exception as e:
-                    failed_units.append(f"{u_info['name']} ({str(e)})")
-                pbar.update(1)
-
-    # --- TAHAP AKHIR & EXPORT (Disesuaikan dengan surveys.json) ---
-    if final_results:
-        if not os.path.exists("data"): os.makedirs("data")
-        df = pd.DataFrame(final_results)
-        
-        # 1. Hapus duplikat kolom teknis
-        df = df.loc[:, ~df.columns.duplicated()]
-
-        # 2. PENYESUAIAN NAMA KOLOM WILAYAH (Mapping Manual agar cocok dengan JSON)
-        # Kita deteksi kolom lvl3 dan lvl4 secara dinamis, lalu beri nama sesuai kemauan JSON Anda
-        col_kec = next((c for c in df.columns if c.startswith('lvl3')), None)
-        col_desa = next((c for c in df.columns if c.startswith('lvl4')), None)
-
-        if col_kec: df['kecamatan_asal'] = df[col_kec]
-        if col_desa: df['desa_asal'] = df[col_desa]
-
-        # 3. LOGIKA MAPPING & FILTERING KETAT (Strict Mode)
-        mapping = settings.get("columns")
-        
-        if mapping:
-            # Cari kolom mana saja yang benar-benar ada di DataFrame (termasuk kecamatan_asal yang baru dibuat)
-            existing_source_cols = [c for c in mapping.keys() if c in df.columns]
-            
-            # Filter: Hapus semua kolom lvl_..., target_unit_id, dll. 
-            # Hanya ambil yang terdaftar di JSON saja.
-            df = df[existing_source_cols]
-            
-            # Rename ke nama cantik (Kecamatan, Desa, Nama_Kepala_Keluarga, dll)
-            df = df.rename(columns=mapping)
-            
-            print(f"✅ Kolom berhasil dibersihkan & di-rename sesuai format PBI.")
-
-        # 4. SIMPAN KE CSV
-        nama_output = f"{config.tgl_str}_{survey_key}.csv"
-        path_output = os.path.join("data", nama_output)
-        
-        # Semicolon (;) penting agar langsung rapi di Excel tanpa 'Text to Columns'
-        df.to_csv(path_output, index=False, sep=';', quoting=csv.QUOTE_ALL, encoding='utf-8')
-        
-        print(f"\n💾 File lokal berhasil dibuat: {path_output}")
-
-        # 5. DRIVE UPLOAD
-        if auto_upload:
-            print(f"📤 Mengirim ke Google Drive...", end=" ", flush=True)
-            try:
-                from google_drive import upload_to_drive
-                if upload_to_drive(path_output):
-                    print("✅ TERKIRIM!")
-                else:
-                    print("❌ GAGAL")
-            except Exception as e:
-                print(f"❌ ERROR: {e}")
-            
-        print(f"🏁 SELESAI! Total data: {len(df)} baris.")
-    else:
-        print(f"\n❌ Tidak ada data yang berhasil ditarik untuk {survey_key}.")
+        print(f"\n❌ Error: {e}")
 
 def main():
     """Menu Interaktif CLI"""

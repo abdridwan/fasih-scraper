@@ -19,3 +19,4 @@ PAGE_SIZE = 100 # Standar Datatable BPS
 # Target Wilayah (Statis di tingkat Kabupaten)
 # Ganti dengan ID Kabupaten/Kota target Anda
 TARGET_KAB_CODE = os.getenv("TARGET_KAB_CODE", "3527")
+GD_FOLDER_ID = os.getenv("GD_FOLDER_ID", "ID_FOLDER_GOOGLE_DRIVE")

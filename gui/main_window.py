@@ -4,9 +4,10 @@ import qtawesome as qta
 from PyQt6.QtWidgets import (QMainWindow, QWidget, QVBoxLayout, QHBoxLayout, 
                              QComboBox, QPushButton, QTextEdit, QLabel, 
                              QMessageBox, QStackedWidget, QFrame, QCheckBox,
-                             QFormLayout, QLineEdit)
+                             QFormLayout, QLineEdit, QProgressBar) 
 from PyQt6.QtCore import Qt, QSize
 from PyQt6.QtGui import QFont
+import config
 
 # Import relative
 from .dialogs import SurveyEditorDialog
@@ -46,45 +47,63 @@ class FasihGui(QMainWindow):
         sidebar_layout = QVBoxLayout(self.sidebar)
         sidebar_layout.setContentsMargins(0, 10, 0, 10)
 
+        # 1. Definisi Tombol Sidebar
         self.btn_menu_scraping = QPushButton(" Menu Utama")
         self.btn_menu_scraping.setIcon(qta.icon('fa5s.tasks', color='white'))
         
         self.btn_menu_login = QPushButton(" Akun SSO")
         self.btn_menu_login.setIcon(qta.icon('fa5s.user-lock', color='white'))
+
+        self.btn_menu_config = QPushButton(" Konfigurasi")
+        self.btn_menu_config.setIcon(qta.icon('fa5s.cog', color='white'))
         
+        # 2. Masukkan ke Layout Sidebar
         sidebar_layout.addWidget(self.btn_menu_scraping)
         sidebar_layout.addWidget(self.btn_menu_login)
+        sidebar_layout.addWidget(self.btn_menu_config)
+        
         sidebar_layout.addStretch()
         main_layout.addWidget(self.sidebar)
 
-        # --- AREA KONTEN ---
+        # --- AREA KONTEN (Stacked Widget) ---
         self.pages = QStackedWidget()
         main_layout.addWidget(self.pages)
 
-        # Inisialisasi halaman
+        # 3. Inisialisasi Halaman (PENTING: Buat dulu object-nya baru di addWidget)
         self.page_scraping_widget = self.create_page_scraping()
         self.page_login_widget = self.create_page_login()
+        self.page_config_widget = self.create_page_config() # Pastikan fungsi ini sudah ada di class Anda
         
-        self.pages.addWidget(self.page_scraping_widget)
-        self.pages.addWidget(self.page_login_widget)
+        # Tambahkan ke Stacked Widget berdasarkan index
+        self.pages.addWidget(self.page_scraping_widget) # Index 0
+        self.pages.addWidget(self.page_login_widget)    # Index 1
+        self.pages.addWidget(self.page_config_widget)   # Index 2
 
-        # Hubungkan navigasi
+        # 4. Hubungkan Navigasi
         self.btn_menu_scraping.clicked.connect(lambda: self.switch_page(0))
         self.btn_menu_login.clicked.connect(lambda: self.switch_page(1))
+        self.btn_menu_config.clicked.connect(lambda: self.switch_page(2))
         
+        # Set halaman default saat dibuka
         self.switch_page(0)
 
     def switch_page(self, index):
         self.pages.setCurrentIndex(index)
+        
+        # Style untuk tombol aktif dan normal
         style_active = "background-color: #27ae60; color: white; font-weight: bold;"
         style_normal = "background-color: transparent; color: #ecf0f1; font-weight: normal;"
+        
+        # Reset semua, lalu set yang aktif
         self.btn_menu_scraping.setStyleSheet(style_active if index == 0 else style_normal)
         self.btn_menu_login.setStyleSheet(style_active if index == 1 else style_normal)
+        self.btn_menu_config.setStyleSheet(style_active if index == 2 else style_normal)
 
     def create_page_scraping(self):
         page = QWidget()
         layout = QVBoxLayout(page)
         
+        # --- ROW 1: Pemilihan Survei & Action Buttons ---
         row1 = QHBoxLayout()
         self.combo_survey = QComboBox()
         self.combo_survey.setFixedHeight(30)
@@ -95,7 +114,7 @@ class FasihGui(QMainWindow):
         self.btn_edit = QPushButton(qta.icon('fa5s.edit'), "")
         self.btn_delete = QPushButton(qta.icon('fa5s.trash-alt'), "")
         self.btn_reload = QPushButton(qta.icon('fa5s.sync-alt'), "")
-        
+
         for btn in [self.btn_add, self.btn_edit, self.btn_delete, self.btn_reload]:
             btn.setFixedSize(35, 30)
             row1.addWidget(btn)
@@ -103,12 +122,41 @@ class FasihGui(QMainWindow):
         self.btn_add.clicked.connect(lambda: self.open_editor(False))
         self.btn_edit.clicked.connect(lambda: self.open_editor(True))
         self.btn_delete.clicked.connect(self.delete_survey)
-        self.btn_reload.clicked.connect(self.load_survey_list)
+        self.btn_reload.clicked.connect(lambda: [self.load_survey_list(), self.reset_progress_bar()])
         layout.addLayout(row1)
 
+        # --- ROW 2: Opsi Google Drive ---
         self.check_drive = QCheckBox("Kirim ke Google Drive")
         layout.addWidget(self.check_drive)
 
+        # --- ROW 3: Progress Bar (Kotak, Tetap Muncul, Angka Dinamis) ---
+        self.progress_bar = QProgressBar()
+        self.progress_bar.setFixedHeight(25)
+        self.progress_bar.setValue(0)
+        # Kondisi awal: Sembunyikan angka jika masih 0%
+        self.progress_bar.setTextVisible(False) 
+        self.progress_bar.setFormat(" %p% Selesai ")
+        
+        # Style Kotak (border-radius: 0px)
+        self.progress_bar.setStyleSheet("""
+            QProgressBar {
+                border: 2px solid #dcdde1;
+                border-radius: 0px; 
+                background-color: #f5f6fa;
+                text-align: center;
+                font-size: 13px;
+                font-weight: bold;
+                color: #2c3e50;
+            }
+            QProgressBar::chunk {
+                background-color: #27ae60;
+                border-radius: 0px;
+                margin: 0px;
+            }
+        """)
+        layout.addWidget(self.progress_bar)
+
+        # --- ROW 4: Tombol Utama (Start/Stop) ---
         row_btn = QHBoxLayout()
         self.btn_start = QPushButton(qta.icon('fa5s.play', color='white'), " Mulai")
         self.btn_start.setStyleSheet("background-color: #27ae60; color: white; font-weight: bold;")
@@ -123,11 +171,13 @@ class FasihGui(QMainWindow):
         row_btn.addWidget(self.btn_stop, 1)
         layout.addLayout(row_btn)
 
+        # --- ROW 5: Console Log ---
         self.log_console = QTextEdit()
         self.log_console.setReadOnly(True)
         self.log_console.setStyleSheet("background-color: #1e293b; color: #38bdf8; font-family: 'Consolas';")
         layout.addWidget(self.log_console)
 
+        # Event Connections
         self.btn_start.clicked.connect(self.start_scraping)
         self.btn_stop.clicked.connect(self.stop_scraping)
 
@@ -229,6 +279,45 @@ class FasihGui(QMainWindow):
 
         layout.addStretch() # Mendorong semua konten ke atas
         return page
+    
+    def create_page_config(self):
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(50, 50, 50, 50)
+
+        # Header
+        header = QLabel("Konfigurasi Sistem (.env)")
+        header.setStyleSheet("font-size: 20px; font-weight: bold; color: #2c3e50;")
+        layout.addWidget(header)
+
+        # Card Form
+        card = QFrame()
+        card.setStyleSheet("background-color: white; border: 1px solid #dcdde1; border-radius: 10px;")
+        card_layout = QFormLayout(card)
+        card_layout.setContentsMargins(20, 20, 20, 20)
+        card_layout.setSpacing(15)
+
+        # Input Fields
+        self.input_kab_code = QLineEdit(str(getattr(config, 'TARGET_KAB_CODE', '3527')))
+        self.input_api_url = QLineEdit(getattr(config, 'BASE_API_URL', ''))
+        self.input_drive_folder = QLineEdit(getattr(config, 'GD_FOLDER_ID', ''))
+
+        card_layout.addRow("Kode Kabupaten (TARGET_KAB_CODE)", self.input_kab_code)
+        card_layout.addRow("Base API URL", self.input_api_url)
+        card_layout.addRow("Google Drive Folder ID", self.input_drive_folder)
+
+        layout.addWidget(card)
+
+        # Tombol Simpan
+        btn_save = QPushButton(" Simpan Konfigurasi")
+        btn_save.setIcon(qta.icon('fa5s.save', color='white'))
+        btn_save.setFixedHeight(45)
+        btn_save.setStyleSheet("background-color: #2c3e50; color: white; font-weight: bold; border-radius: 5px;")
+        btn_save.clicked.connect(self.save_env_config)
+        layout.addWidget(btn_save)
+
+        layout.addStretch()
+        return page
 
     def load_survey_list(self):
         self.combo_survey.clear()
@@ -282,13 +371,18 @@ class FasihGui(QMainWindow):
                 settings = json.load(f).get(key)
         except:
             return
-
+        
         self.btn_start.setEnabled(False)
         self.btn_stop.setEnabled(True)
         self.log_console.clear()
-        
+        self.progress_bar.setValue(0) # Reset progress
+
         self.worker = ScraperWorker(key, settings, auto_upload=self.check_drive.isChecked())
         self.worker.log_signal.connect(self.log_console.append)
+        
+        # HUBUNGKAN SINYAL PROGRESS
+        self.worker.progress_signal.connect(self.progress_bar.setValue)
+        
         self.worker.finished.connect(self.on_finished)
         self.worker.start()
 
@@ -355,3 +449,36 @@ class FasihGui(QMainWindow):
         except Exception as e:
             QMessageBox.critical(self, "Kesalahan Sistem", f"Gagal menyimpan file .env: {str(e)}")
     
+    def save_env_config(self):
+        try:
+            from dotenv import set_key
+            env_path = ".env"
+            
+            # Ambil data dari input GUI
+            kab_code = self.input_kab_code.text().strip()
+            api_url = self.input_api_url.text().strip()
+            folder_id = self.input_drive_folder.text().strip()
+
+            # Simpan ke file .env
+            set_key(env_path, "TARGET_KAB_CODE", kab_code)
+            set_key(env_path, "BASE_API_URL", api_url)
+            set_key(env_path, "GD_FOLDER_ID", folder_id)
+
+            # Update variabel runtime di config.py
+            import config
+            config.TARGET_KAB_CODE = kab_code
+            config.BASE_API_URL = api_url
+            config.GD_FOLDER_ID = folder_id
+
+            QMessageBox.information(self, "Sukses", "Konfigurasi .env berhasil diperbarui!")
+        except Exception as e:
+            QMessageBox.critical(self, "Error", f"Gagal menyimpan: {str(e)}")
+
+    def reset_progress_bar(self):
+        """Fungsi untuk mengembalikan progress bar ke kondisi awal"""
+        if hasattr(self, 'progress_bar'):
+            self.progress_bar.setValue(0)
+            self.progress_bar.setTextVisible(False)
+            # Log console juga dibersihkan agar fresh
+            self.log_console.clear() 
+            self.log_console.append("🔄 System: Konfigurasi di-reload dan progres di-reset.")
