@@ -194,6 +194,13 @@ def process_survey(survey_key, settings, auto_upload=False):
             df.to_csv(path_out, index=False, sep=';', quoting=csv.QUOTE_ALL, encoding='utf-8')
             print(f"🏁 SELESAI! Total: {len(df)} baris.")
 
+            if auto_upload:
+                print(f"📤 Mengirim {path_out} ke Google Drive...", end=" ", flush=True)
+                if upload_to_drive(path_out):
+                    print("✅ BERHASIL!")
+                else:
+                    print("❌ GAGAL!")
+
     except Exception as e:
         print(f"\n❌ Error: {e}")
 
@@ -242,25 +249,26 @@ def main_automatic(survey_key, auto_upload=False):
         print(f"❌ Error: Nama survei '{survey_key}' tidak ditemukan.")
 
 if __name__ == "__main__":
-    # 1. Bersihkan semua argumen: ubah ke UPPERCASE dan hapus karakter "--"
-    # Agar --PBI, --pbi, atau PBI semuanya dibaca sebagai PBI
-    clean_args = [a.upper().replace("--", "") for a in sys.argv]
+    # Ambil argumen mentah selain nama file script
+    raw_args = [a.upper() for a in sys.argv[1:]]
     
-    # 2. Cari apakah ada flag UPLOAD di dalam argumen
-    should_upload = "UPLOAD" in clean_args
+    # Cek flag upload (mendukung --upload atau upload)
+    should_upload = any("UPLOAD" in a for a in raw_args)
+    
+    # Ambil nama survei (argumen pertama yang tidak mengandung kata UPLOAD)
+    # Hapus tanda -- jika ada
+    target_survey = None
+    for arg in raw_args:
+        clean_arg = arg.replace("--", "")
+        if "UPLOAD" not in clean_arg:
+            target_survey = clean_arg
+            break
 
-    # 3. Cari argumen yang merupakan nama survei (yang bukan nama file dan bukan UPLOAD)
-    # sys.argv[0] biasanya adalah 'main.py'
-    potential_surveys = [a for a in clean_args if a not in ["UPLOAD", os.path.basename(__file__).upper()]]
-
-    if potential_surveys:
-        target_survey = potential_surveys[0]
-        # Jalankan otomatis jika ada argumen survei
+    if target_survey:
         main_automatic(target_survey, should_upload)
     else:
-        # Jalankan menu interaktif jika tidak ada argumen
         main()
 
 # if __name__ == "__main__":
 #     # Upload gdrive saja:
-#     upload_to_drive("data/20260409_1246_PBI.csv")
+#     upload_to_drive("data/20260420_0719_PBI.csv")
