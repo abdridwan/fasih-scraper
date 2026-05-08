@@ -163,6 +163,10 @@ def process_survey(survey_key, settings, auto_upload=False):
                         res = future.result() 
                         if res:
                             for row in res:
+                                if "codeIdentity" in row:
+                                    row["codeIdentity"] = "" if row["codeIdentity"] is None else str(row["codeIdentity"])
+                                else:
+                                    row["codeIdentity"] = ""
                                 for m_key, m_val in u_info['meta_names'].items():
                                     row[m_key] = m_val
                                 # Label Desa
@@ -177,6 +181,10 @@ def process_survey(survey_key, settings, auto_upload=False):
         if final_results:
             df = pd.DataFrame(final_results)
             df = df.loc[:, ~df.columns.duplicated()]
+            if "codeIdentity" not in df.columns:
+                df["codeIdentity"] = ""
+                print("INFO: Kolom codeIdentity tidak ditemukan, kolom kosong ditambahkan.")
+            df["codeIdentity"] = df["codeIdentity"].fillna("").astype(str)
 
             # Deteksi kecamatan & desa asal
             col_kec = next((c for c in df.columns if c.lower().startswith('lvl3')), None)
@@ -188,6 +196,18 @@ def process_survey(survey_key, settings, auto_upload=False):
             if mapping:
                 target_cols = [c for c in mapping.keys() if c in df.columns]
                 df = df[target_cols].rename(columns=mapping)
+
+            # Keep a guaranteed string `codeIdentity` column in the final CSV,
+            # even when mapping renames it (e.g. to `Kode_Sampel`).
+            if "codeIdentity" not in df.columns:
+                mapped_code_identity = mapping.get("codeIdentity") if mapping else None
+                if mapped_code_identity and mapped_code_identity in df.columns:
+                    df["codeIdentity"] = df[mapped_code_identity].fillna("").astype(str)
+                else:
+                    df["codeIdentity"] = ""
+                    print("INFO: codeIdentity tidak ada setelah mapping, kolom kosong dipertahankan.")
+            else:
+                df["codeIdentity"] = df["codeIdentity"].fillna("").astype(str)
 
             if not os.path.exists("data"): os.makedirs("data")
             path_out = os.path.join("data", f"{config.tgl_str}_{survey_key}.csv")

@@ -23,5 +23,10 @@
     "GC_PLN_PASCABAYAR": {
         "period_id": "d63e9832-13c6-4ec7-bf5b-59229c2f90f9",
         "uuid": "2e31188c-a617-4163-8056-edccf93d8d79"
+    },
+    "SAK - UJI COBA": {
+        "period_id": "2be52014-b313-43e1-865a-206675421816",
+        "uuid": "88dbbd23-d4a4-4bf2-98fe-5a8b8b2c733a",
+        "columns": {}
     }
 }

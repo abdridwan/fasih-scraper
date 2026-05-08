@@ -147,6 +147,10 @@ class ScraperWorker(QThread):
                         res = future.result()
                         if res:
                             for row in res:
+                                if "codeIdentity" in row:
+                                    row["codeIdentity"] = "" if row["codeIdentity"] is None else str(row["codeIdentity"])
+                                else:
+                                    row["codeIdentity"] = ""
                                 # Injeksi nama-nama wilayah parent secara dinamis
                                 for m_key, m_val in u_info['meta_names'].items():
                                     row[m_key] = m_val
@@ -164,9 +168,15 @@ class ScraperWorker(QThread):
 
             # 4. EXPORT DATA
             if final_results and self._is_running:
-                self.log_signal.emit("📊 [5/5] Menyusun data & mengekspor ke CSV...")
+                self.log_signal.emit("[5/5] Menyusun data & mengekspor ke CSV...")
                 df = pd.DataFrame(final_results)
-                
+
+                if "codeIdentity" in df.columns:
+                    df["codeIdentity"] = df["codeIdentity"].fillna("").astype(str)
+                else:
+                    df["codeIdentity"] = ""
+                    self.log_signal.emit("INFO: Kolom codeIdentity tidak ditemukan, kolom kosong ditambahkan.")
+
                 if 'id' in df.columns:
                     df = df.drop_duplicates(subset=['id'])
 
@@ -202,6 +212,18 @@ class ScraperWorker(QThread):
                         df = df.drop(columns=["Kecamatan"])
                     if "Desa" in df.columns and (df["Desa"] == "").all():
                         df = df.drop(columns=["Desa"])
+
+                # Pastikan kolom `codeIdentity` tetap ada di output final
+                # meskipun mapping mengganti namanya (contoh: `Kode_Sampel`).
+                if "codeIdentity" not in df.columns:
+                    mapped_code_identity = mapping.get("codeIdentity") if mapping else None
+                    if mapped_code_identity and mapped_code_identity in df.columns:
+                        df["codeIdentity"] = df[mapped_code_identity].fillna("").astype(str)
+                    else:
+                        df["codeIdentity"] = ""
+                        self.log_signal.emit("INFO: codeIdentity tidak ada setelah mapping, kolom kosong dipertahankan.")
+                else:
+                    df["codeIdentity"] = df["codeIdentity"].fillna("").astype(str)
                 
                 # Simpan ke CSV
                 if not os.path.exists("data"): os.makedirs("data")
@@ -227,3 +249,4 @@ class ScraperWorker(QThread):
 
         except Exception as e:
             self.finished.emit(f"❌ Kesalahan Fatal: {str(e)}")
+

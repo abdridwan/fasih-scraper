@@ -2,6 +2,7 @@ import requests
 import time
 import logging
 import random
+import json
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -26,7 +27,13 @@ class FasihScraper:
             try:
                 res = self.session.post(endpoint, json=payload, timeout=60)
                 if res.status_code == 200:
-                    return res.json().get("searchData", [])
+                    # Preserve large numeric identifiers (e.g. codeIdentity) as text.
+                    # Default JSON decoding can coerce large numbers into float and lose precision.
+                    try:
+                        data = json.loads(res.text, parse_int=str, parse_float=str)
+                    except json.JSONDecodeError:
+                        data = res.json()
+                    return data.get("searchData", [])
                 time.sleep(random.uniform(2.0, 4.0) * (attempt + 1))
             except Exception:
                 time.sleep(random.uniform(2.0, 4.0) * (attempt + 1))
